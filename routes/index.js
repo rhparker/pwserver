@@ -10,7 +10,12 @@ const Airtable = require('airtable');
 // test version (on personal account)
 // var base = new Airtable({ apiKey: 'keyYzUutxaILiEMpV' }).base('appfZ6MLegSzjsN1i');
 // production version
-var base = new Airtable({ apiKey: 'key75Nk9vOTp0ZARs' }).base('appwNiKTDHNEGFDWY');
+// 2018
+// var base = new Airtable({ apiKey: 'keyRqRDLjkEOX4ipI' }).base('appzCfOTY0Ts1ljtS');
+
+// 2019
+var base = new Airtable({ apiKey: 'keywRxtvV6KRgqyaa' }).base('appNgQMPn8pcgC4RA');
+
 
 // functions to handle POST data
 // yesNoCheck fills out checkboxes in Airtable, returns true only if Yes is selected 
@@ -23,7 +28,20 @@ function yesNoCheck(s) {
     }
 }
 
-// handles multiselect (checkboxes)
+// cuts string s off at first occurrence of character (or string c)
+// does nothing if c does not occur
+function cutAfter(s, c) {
+    n = s.indexOf(c);
+    if (n == -1) {
+	return s;
+    }
+    else {
+        return s.slice(0, n);
+    }
+}
+
+
+// handles multiselect (checkboxes on the form)
 // if we have selected only one option, JotForm gives us a string
 // in this case, we need to convert it to an object (array of size 1)
 function multiSelect(s) {
@@ -32,6 +50,12 @@ function multiSelect(s) {
     } else {
 	return s
     }
+}
+
+// grabs the first word of string
+// use for multiselects, where we only want first word for database
+function firstWord(s) {
+    return s.split(' ')[0];
 }
 
 // deletes null or empty string elements from data object
@@ -101,14 +125,22 @@ router.get('/', function(req, res, next) {
 
 // POST method for PW application
 router.post('/apply', function (req, res) {
-    //res.send(JSON.stringify(req.body, null, 4));
-  
     // timestamp
     var date = new Date();
+    var deadline = new Date('2019-03-02 05:00 GMT');
+
+    // process name
+    name = req.body.name.trim();
+    namearray = name.split(' ');
+    namelen = namearray.length;
+    lastname = namearray[namelen - 1];
+    firstname = namearray.slice(0, namelen-1).join(' ');
 
     // data for new record or to update
     var data = {
-	    "Name" : req.body.name,
+	    "Name" : name,
+            "First Name" : firstname,
+	    "Last Name" : lastname,
 	    "Email" : req.body.email,
 	    "Address 1" : req.body["address[]"][0],
 	    "Address 2" : req.body["address[]"][1],
@@ -127,12 +159,51 @@ router.post('/apply', function (req, res) {
 	    "Kitchen work app" : yesNoCheck(req.body.applykwe),
 	    "NGI app" : yesNoCheck(req.body.applyngi),
 	    "SDCEA app" : yesNoCheck(req.body.applysdcea),
-	    "ESC app" : yesNoCheck(req.body.applyesc),
-	    "Family week app" : yesNoCheck(req.body.applyfamily)
+	    "ESC app" : req.body.applyesc,
+	    "Family week app" : req.body.applyfamily,
+	    "Deposit payment method" : firstWord(req.body.paymentmethod)
     };
+
+    // if before deadline, mark that
+    if (date <= deadline) { 
+        data["First Round"] = true;
+    }
+
+    // if electronic payment used, enter that info in database as well
+    if (data["Deposit payment method"] == "Electronic") {
+	data["Deposit received"] = true;
+	data["Deposit email sent"] = true;
+	data["Deposit amount"] = req.body["electronicpayment[]"][2];
+    }
     syncAirTable(data, date);
-    res.send(JSON.stringify(data, null, 4));
+    // res.send(JSON.stringify(req.body, null, 4));
+    // res.send(JSON.stringify(data, null, 4));
+    res.render('apply', { title: 'Thank you for applying to Pinewoods Scottish Sessions.' });
 });
+
+// POST method for PW payment
+router.post('/payment', function (req, res) {
+    // timestamp
+    var date = new Date();
+    var data = {
+	"Name" : req.body.name,
+	"Email" : req.body.email
+    };
+    if (req.body["paymentfield"] ) {
+        var paymentField = req.body["paymentfield"]
+    }
+    else {
+        var paymentField = "Payment 1"
+    }
+    paymentFee = paymentField + " fee";
+    data[paymentField] = req.body["paymentamount"];
+    if (req.body["electronicfee"]) data[paymentFee] = req.body["electronicfee"]
+ 
+    syncAirTable(data, date);
+    // res.send(JSON.stringify(req.body, null, 4));
+    res.render('apply', { title: 'Thank you for submitting an electronic payment for Pinewoods Scottish Sessions.' });
+});
+
 
 // POST method for PW survey
 router.post('/survey', function (req, res) {
@@ -143,6 +214,7 @@ router.post('/survey', function (req, res) {
     // data for new record or to update
     var data = {
 	"Survey timestamp" : date.toUTCString(),
+        "Info form received" : true,
 	"Name" : req.body.name,
 	"Email" : req.body.email,
 	"Badge name" : req.body.badgename,
@@ -151,7 +223,7 @@ router.post('/survey', function (req, res) {
 	"Vegetarian" : yesNoCheck(req.body.vegetarian),
 	"Other dietary" : req.body.otherdietary,
 	"Housing environment" : req.body.housingenvironment,
-	"Housing location" : req.body.housinglocation,
+	"Housing location" : cutAfter(req.body.housinglocation, '.'),
 	"Cabin request" : req.body.housingrequest,
 	"Housing needs" :req.body.housingneeds,
 	"Request to share cabin" : yesNoCheck(req.body.willsharehousing),
@@ -162,7 +234,6 @@ router.post('/survey', function (req, res) {
 	"Job meal preference" : multiSelect(req.body["jobmeal[]"]),
 	"Job time preference" : req.body.jobtime,
 	"Drink making" : multiSelect(req.body["drinkmaking[]"]),
-	"Physical restrictions" : req.body["jobrestrictions[]"].toString(),
 	"Job request" : req.body.jobrequest,
 	"Arrive by 530" : yesNoCheck(req.body.arrivebefore530),
 	"Arrive by dinner" : yesNoCheck(req.body.arrivebeforedinner),
@@ -178,10 +249,14 @@ router.post('/survey', function (req, res) {
 	"Attending ESC" : yesNoCheck(req.body.attendingesc),
 	"Attending family week" : yesNoCheck(req.body.attendingfamily)
     };
+    if (req.body["jobrestrictions[]"]) {
+        data["Physical restrictions"] = req.body["jobrestrictions[]"].toString()
+    }
+
     syncAirTable(data, date);
     // res.send(JSON.stringify(data, null, 4));
-
-     res.send(JSON.stringify(req.body, null, 4));
+    res.render('apply', { title: 'Thank you for submitting your Camper Information Form.' });
+    // res.send(JSON.stringify(req.body, null, 4));
 });
 
 module.exports = router;

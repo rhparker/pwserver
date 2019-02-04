@@ -28,6 +28,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/', index);
 app.use('/users', users);
 
+// static folders
+app.use(express.static('public'))
+
 // create a write stream (in append mode) for log
 var accessLogStream = fs.createWriteStream(__dirname + '/logs//access.log',{flags: 'a'});
 
