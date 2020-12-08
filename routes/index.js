@@ -12,10 +12,10 @@ const Airtable = require('airtable');
 // production version
 // 2018
 // var base = new Airtable({ apiKey: 'keyRqRDLjkEOX4ipI' }).base('appzCfOTY0Ts1ljtS');
-
 // 2019
-var base = new Airtable({ apiKey: 'keywRxtvV6KRgqyaa' }).base('appNgQMPn8pcgC4RA');
-
+// var base = new Airtable({ apiKey: 'keywRxtvV6KRgqyaa' }).base('appNgQMPn8pcgC4RA');
+// 2020
+var base = new Airtable({ apiKey: 'keywRxtvV6KRgqyaa' }).base('appOWXi5GvpUYib9I');
 
 // functions to handle POST data
 // yesNoCheck fills out checkboxes in Airtable, returns true only if Yes is selected 
@@ -40,7 +40,6 @@ function cutAfter(s, c) {
     }
 }
 
-
 // handles multiselect (checkboxes on the form)
 // if we have selected only one option, JotForm gives us a string
 // in this case, we need to convert it to an object (array of size 1)
@@ -49,6 +48,21 @@ function multiSelect(s) {
 	return([s]);
     } else {
 	return s
+    }
+}
+
+// handles multiselect, but cuts off strings with cutAfter
+function multiSelectAfter(s, c) {
+    if (typeof(s) !== "undefined") {
+        if (typeof(s) == "string") {
+            r = [s];
+        } else {
+            r = s;
+        }
+        for (i = 0; i < r.length; i++) {
+               r[i] = cutAfter(r[i],c);
+        } 
+    return(r);
     }
 }
 
@@ -127,7 +141,7 @@ router.get('/', function(req, res, next) {
 router.post('/apply', function (req, res) {
     // timestamp
     var date = new Date();
-    var deadline = new Date('2019-03-02 05:00 GMT');
+    var deadline = new Date('2020-03-02 05:00 GMT');
 
     // process name
     name = req.body.name.trim();
@@ -156,8 +170,13 @@ router.post('/apply', function (req, res) {
 	    "Privacy" : multiSelect(req.body["privacyoptions[]"]),
 	    "Roles" : multiSelect(req.body["camproles[]"]),
 	    "Other roles" : req.body.otherrole,
+            "Dance experience" : cutAfter(req.body.danceexperience,':'),
+            "Dance years" : req.body.danceyears,
+            "Dance class" : req.body.danceclass,
+            "Dance other" : req.body.danceother,
 	    "Kitchen work app" : yesNoCheck(req.body.applykwe),
 	    "NGI app" : yesNoCheck(req.body.applyngi),
+            "Age" : req.body.age,
 	    "SDCEA app" : yesNoCheck(req.body.applysdcea),
 	    "ESC app" : req.body.applyesc,
 	    "Family week app" : req.body.applyfamily,
@@ -218,12 +237,15 @@ router.post('/survey', function (req, res) {
 	"Name" : req.body.name,
 	"Email" : req.body.email,
 	"Badge name" : req.body.badgename,
+        "Pronouns" : req.body.pronouns,
 	"Emergency name" : req.body.emergencyname,
 	"Emergency phone" : req.body.emergencyphone,
+        "Paper copies" : multiSelect(req.body["papercopies[]"]),
 	"Vegetarian" : yesNoCheck(req.body.vegetarian),
 	"Other dietary" : req.body.otherdietary,
 	"Housing environment" : req.body.housingenvironment,
-	"Housing location" : cutAfter(req.body.housinglocation, '.'),
+	"Housing location" : multiSelectAfter(req.body["housinglocation[]"],'.'),
+        "Housing type" : multiSelectAfter(req.body["housingspecifics[]"],' ('),
 	"Cabin request" : req.body.housingrequest,
 	"Housing needs" :req.body.housingneeds,
 	"Request to share cabin" : yesNoCheck(req.body.willsharehousing),
@@ -237,6 +259,7 @@ router.post('/survey', function (req, res) {
 	"Job request" : req.body.jobrequest,
 	"Arrive by 530" : yesNoCheck(req.body.arrivebefore530),
 	"Arrive by dinner" : yesNoCheck(req.body.arrivebeforedinner),
+        "Arrive after 630" : yesNoCheck(req.body.arriveafter630),
 	"Need ride" : yesNoCheck(req.body.needride),
 	"Need ride from" : req.body.needridefrom,
 	"Offer ride" : yesNoCheck(req.body.giveride),
